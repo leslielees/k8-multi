@@ -1,0 +1,39 @@
+sudo: required
+services:
+    - docker
+
+before_install:
+  - travis encrypt-file service-account.json -r leslielees/k8-multi
+  - curl https://sdk.cloud.google.com | bash > /dev/null;
+  - source $HOME/google-cloud-sdk/path.bash.inc
+  - gcloud components update kubectl
+  - gcloud auth activate-service-account --key-file service-account.json
+
+script:
+# we can have test for pther project/containers too. but not doing in this eg.
+  - docker run -e CI=true leslielees/docker-multicontainer-frontend npm test
+
+after_sucess:
+  - docker build -t leslielees/docker-multi-frontend -f ./frontend/Dockerfile ./frontend
+  - docker build -t leslielees/docker-multi-nginx -f ./nginx/Dockerfile ./nginx
+  - docker build -t leslielees/docker-multi-api -f ./api/Dockerfile ./api
+  - docker build -t leslielees/docker-multi-worker -f ./worker/Dockerfile ./worker
+  - echo "$DOCKER_PASSWORD" | docker login -u "$DOCKER_USERNAME" --password-stdin
+  - docker push leslielees/docker-multi-frontend
+  - docker push leslielees/docker-multi-nginx
+  - docker push leslielees/docker-multi-api
+  - docker push leslielees/docker-multi-worker
+
+# Commented as AWS Env are deleted
+
+# deploy:
+#  provider: elasticbeanstalk
+#  region: "us-east-1"
+#  app: "docker-mutli-container"
+#  env: "DockerMutliContainer-env"
+#  bucket_name: "elasticbeanstalk-us-east-1-912479479184"
+#  bucket_path: "docker-multi"
+#  on:
+#    branch: master
+#  access_key_id: $AWS_ACCESS_KEY
+#  secret_access_key: $AWS_SECRET_KEY
