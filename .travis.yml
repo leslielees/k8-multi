@@ -1,39 +1,28 @@
 sudo: required
 services:
     - docker
-
+env:
+  global:
+    - SHA=$(git rev-parse HEAD)
+    - CLOUDSDK_CORE_DISABLE_PROMPTS=1
 before_install:
-  - travis encrypt-file service-account.json -r leslielees/k8-multi
+  - openssl aes-256-cbc -K $encrypted_9f3b5599b056_key -iv $encrypted_9f3b5599b056_iv -in service-account.json.enc -out service-account.json -d
   - curl https://sdk.cloud.google.com | bash > /dev/null;
   - source $HOME/google-cloud-sdk/path.bash.inc
   - gcloud components update kubectl
   - gcloud auth activate-service-account --key-file service-account.json
+  - gcloud config set project burner-leskings
+  - gcloud config set compute/zone us-central1-a
+  - gcloud container clusters get-credentials k8-multi
+  - echo "$DOCKER_PASSWORD" | docker login -u "$DOCKER_USERNAME" --password-stdin
+  - docker build -t leslielees/k8-multi-test -f ./client/Dockerfile.dev ./client
 
 script:
 # we can have test for pther project/containers too. but not doing in this eg.
-  - docker run -e CI=true leslielees/docker-multicontainer-frontend npm test
+  - docker run -e CI=true leslielees/k8-multi-test npm test
 
-after_sucess:
-  - docker build -t leslielees/docker-multi-frontend -f ./frontend/Dockerfile ./frontend
-  - docker build -t leslielees/docker-multi-nginx -f ./nginx/Dockerfile ./nginx
-  - docker build -t leslielees/docker-multi-api -f ./api/Dockerfile ./api
-  - docker build -t leslielees/docker-multi-worker -f ./worker/Dockerfile ./worker
-  - echo "$DOCKER_PASSWORD" | docker login -u "$DOCKER_USERNAME" --password-stdin
-  - docker push leslielees/docker-multi-frontend
-  - docker push leslielees/docker-multi-nginx
-  - docker push leslielees/docker-multi-api
-  - docker push leslielees/docker-multi-worker
-
-# Commented as AWS Env are deleted
-
-# deploy:
-#  provider: elasticbeanstalk
-#  region: "us-east-1"
-#  app: "docker-mutli-container"
-#  env: "DockerMutliContainer-env"
-#  bucket_name: "elasticbeanstalk-us-east-1-912479479184"
-#  bucket_path: "docker-multi"
-#  on:
-#    branch: master
-#  access_key_id: $AWS_ACCESS_KEY
-#  secret_access_key: $AWS_SECRET_KEY
+deploy:
+  provider: script
+  script: bash ./deploy.sh
+  on:
+    branch: master

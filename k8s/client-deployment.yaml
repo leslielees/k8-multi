@@ -14,6 +14,6 @@ spec:
     spec:
       containers:
         - name: client
-          image: leslielees/docker-multi-frontend
+          image: leslielees/k8-frontend
           ports:
             - containerPort: 3000
